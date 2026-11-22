@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: shop, POSTGRES_PASSWORD: shop, POSTGRES_DB: shop }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U shop"], interval: 5s, retries: 10 }
+    volumes: [db-data:/var/lib/postgresql/data]
+
+  api:
+    build: ./api
+    ports: ["4000:4000"]
+    environment:
+      PORT: "4000"
+      DATABASE_URL: postgres://shop:shop@db:5432/shop
+      DB_SYNC: "true"
+      WEB_URL: http://localhost:3000
+      # Leave empty to use the built-in fake checkout. With Stripe test keys, see the README.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    depends_on: { db: { condition: service_healthy } }
+
+  web:
+    build:
+      context: ./web
+      args: { NEXT_PUBLIC_API_URL: http://localhost:4000 }
+    ports: ["3000:3000"]
+    environment:
+      API_URL: http://api:4000 # server-side rendering talks to the API inside the network
+    depends_on: [api]
+
+volumes:
+  db-data:
